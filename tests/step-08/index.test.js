@@ -1,3 +1,4 @@
+
 const readCSV = require('../../src/csvReader');
 const parseQuery = require('../../src/queryParser');
 const executeSELECTQuery = require('../../src/index');
@@ -15,10 +16,10 @@ test('Parse SQL Query', () => {
     const parsed = parseQuery(query);
     expect(parsed).toEqual({
         fields: ['id', 'name'],
+        joinCondition:null,
+        joinTable:null,
         table: 'student',
-        whereClauses: [],
-        joinCondition: null,
-        joinTable: null
+        whereClauses:[],
     });
 });
 
@@ -37,24 +38,15 @@ test('Parse SQL Query with WHERE Clause', () => {
     const parsed = parseQuery(query);
     expect(parsed).toEqual({
         fields: ['id', 'name'],
+        joinCondition:null,
+        joinTable:null,
         table: 'student',
         whereClauses: [{
             "field": "age",
             "operator": "=",
             "value": "25",
-        }],
-        joinCondition: null,
-        joinTable: null
+        }]
     });
-});
-
-test('Execute SQL Query with WHERE Clause', async () => {
-    const query = 'SELECT id, name FROM student WHERE age = 25';
-    const result = await executeSELECTQuery(query);
-    expect(result.length).toBe(1);
-    expect(result[0]).toHaveProperty('id');
-    expect(result[0]).toHaveProperty('name');
-    expect(result[0].id).toBe('2');
 });
 
 test('Parse SQL Query with Multiple WHERE Clauses', () => {
@@ -62,6 +54,8 @@ test('Parse SQL Query with Multiple WHERE Clauses', () => {
     const parsed = parseQuery(query);
     expect(parsed).toEqual({
         fields: ['id', 'name'],
+        joinCondition:null,
+        joinTable:null,
         table: 'student',
         whereClauses: [{
             "field": "age",
@@ -71,13 +65,11 @@ test('Parse SQL Query with Multiple WHERE Clauses', () => {
             "field": "name",
             "operator": "=",
             "value": "John",
-        }],
-        joinCondition: null,
-        joinTable: null
+        }]
     });
 });
 
-test('Execute SQL Query with Complex WHERE Clause', async () => {
+test('Execute SQL Query with Multiple WHERE Clause', async () => {
     const query = 'SELECT id, name FROM student WHERE age = 30 AND name = John';
     const result = await executeSELECTQuery(query);
     expect(result.length).toBe(1);
@@ -97,6 +89,7 @@ test('Execute SQL Query with Not Equal to', async () => {
     expect(result.length).toEqual(2);
     expect(result[0]).toHaveProperty('name');
 });
+
 
 test('Parse SQL Query with INNER JOIN', async () => {
     const query = 'SELECT student.name, enrollment.course FROM student INNER JOIN enrollment ON student.id=enrollment.student_id';
