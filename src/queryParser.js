@@ -1,77 +1,99 @@
-
-
-function parseWhereClause(whereString) {
-    const conditionRegex = /(.*?)(=|!=|>|<|>=|<=)(.*)/;
-    return whereString.split(/ AND | OR /i).map(conditionString => {
-        const match = conditionString.match(conditionRegex);
-        if (match) {
-            const [, field, operator, value] = match;
-            return { field: field.trim(), operator, value: value.trim() };
-        }
-        throw new Error('Invalid WHERE clause format');
-    });
-}
-// src/queryParser.js
-
 function parseQuery(query) {
-    
-    // First, let's trim the query to remove any leading/trailing whitespaces
     query = query.trim();
 
-    // Initialize variables for different parts of the query
     let selectPart, fromPart;
+    let hasAggregateWithoutGroupBy = false;
+    const groupBySplit = query.split(/\GROUP BY\s/i);
+    query = groupBySplit[0];
+    const groupByFields = getGroupByFields(groupBySplit);
 
-    // Split the query at the WHERE clause if it exists
     const whereSplit = query.split(/\sWHERE\s/i);
-    query = whereSplit[0]; // Everything before WHERE clause
+    query = whereSplit[0];
 
-    // WHERE clause is the second part after splitting, if it exists
     const whereClause = whereSplit.length > 1 ? whereSplit[1].trim() : null;
 
-    // Split the remaining query at the JOIN clause if it exists
-    const joinSplit = query.split(/\sINNER JOIN\s/i);
-    selectPart = joinSplit[0].trim(); // Everything before JOIN clause
+    const joinSplit = query.split(/\s(INNER|LEFT|RIGHT) JOIN\s/i);
+    selectPart = joinSplit[0].trim();
 
-    // JOIN clause is the second part after splitting, if it exists
     const joinPart = joinSplit.length > 1 ? joinSplit[1].trim() : null;
-
-    // Parse the SELECT part
+    const joinClause = parseJoinClause(query);
+    const joinType = joinClause.joinType;
+    const joinTable = joinClause.joinTable;
+    const joinCondition = joinClause.joinCondition;
     const selectRegex = /^SELECT\s(.+?)\sFROM\s(.+)/i;
     const selectMatch = selectPart.match(selectRegex);
     if (!selectMatch) {
-        throw new Error('Invalid SELECT format');
+      throw new Error("Invalid SELECT format");
     }
 
     const [, fields, table] = selectMatch;
 
-    // Parse the JOIN part if it exists
-    let joinTable = null, joinCondition = null;
-    if (joinPart) {
-        const joinRegex = /^(.+?)\sON\s([\w.]+)\s*=\s*([\w.]+)/i;
-        const joinMatch = joinPart.match(joinRegex);
-        if (!joinMatch) {
-            throw new Error('Invalid JOIN format');
-        }
-
-        joinTable = joinMatch[1].trim();
-        joinCondition = {
-            left: joinMatch[2].trim(),
-            right: joinMatch[3].trim()
-        };
-    }
-
-    // Parse the WHERE part if it exists
     let whereClauses = [];
+
     if (whereClause) {
-        whereClauses = parseWhereClause(whereClause);
+      whereClauses = parseWhereClause(whereClause);
     }
+
+    const temp = fields.split(",").map((field) => field.trim());
+
+    temp.map((field) => {
+      const match = field.match(/^(AVG|SUM|COUNT|MIN|MAX)\((.+)\)/i);
+      console.log("match is ", match);
+      if (match && !groupByFields) {
+        hasAggregateWithoutGroupBy = true;
+      }
+    });
 
     return {
-        fields: fields.split(',').map(field => field.trim()),
-        table: table.trim(),
-        whereClauses,
-        joinTable,
-        joinCondition
+      fields: fields.split(",").map((field) => field.trim()),
+      table: table.trim(),
+      whereClauses,
+      joinTable,
+      joinCondition,
+      joinType,
+      groupByFields,
+      hasAggregateWithoutGroupBy,
+    };
+  }
+  function parseWhereClause(whereString) {
+    console.log("where string is", whereString);
+    const conditionRegex = /(.*?)(=|!=|>|<|>=|<=)(.*)/;
+    return whereString.split(/ AND | OR /i).map((conditionString) => {
+        const match = conditionString.match(conditionRegex);
+        console.log("match in where is ", match);
+        if (match) {
+          const [, field, operator, value] = match;
+          return { field: field.trim(), operator, value: value.trim() };
+        }
+        throw new Error("Invalid WHERE clause format");
+      });
+  }
+
+function parseJoinClause(query) {
+    const joinRegex =
+      /\s(INNER|LEFT|RIGHT) JOIN\s(.+?)\sON\s([\w.]+)\s*=\s*([\w.]+)/i;
+      const joinMatch = query.match(joinRegex);
+      if (joinMatch) {
+        console.log("joinmatch is ", joinMatch);
+      return {
+        joinType: joinMatch[1].trim(),
+        joinTable: joinMatch[2].trim(),
+        joinCondition: {
+          left: joinMatch[3].trim(),
+          right: joinMatch[4].trim(),
+        },
+      };
+    }
+    return {
+        joinType: null,
+      joinTable: null,
+      joinCondition: null,
     };
 }
-module.exports = parseQuery;
+
+function getGroupByFields(groupBySplit) {
+  if (groupBySplit.length > 1) {
+    return groupBySplit[1].split(",").map((field) => field.trim());
+  } else return null;
+}
+module.exports = { parseQuery, parseJoinClause };
